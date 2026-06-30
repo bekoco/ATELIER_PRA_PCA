@@ -294,7 +294,61 @@ Difficulté : Moyenne (~2 heures)
 Aujourd’hui nous restaurobs “le dernier backup”. Nous souhaitons **ajouter la capacité de choisir un point de restauration**.
 
 *..Décrir ici votre procédure de restauration (votre runbook)..*  
-  
+Pour restaurer une base de données à un état spécifique (et non uniquement le dernier backup), voici la procédure à suivre :
+
+1. Identifier le point de restauration souhaité
+Il faut d'abord lister les sauvegardes disponibles dans le volume de stockage dédié.
+# Lancement d'un pod de debug pour accéder au volume des backups
+```
+kubectl -n pra run debug-backup --rm -it --image=alpine --overrides='
+{
+  "spec": {
+    "containers": [{
+      "name": "debug",
+      "image": "alpine",
+      "command": ["sh"],
+      "stdin": true,
+      "tty": true,
+      "volumeMounts": [{
+        "name": "backup",
+        "mountPath": "/backup"
+      }]
+    }],
+    "volumes": [{
+      "name": "backup",
+      "persistentVolumeClaim": {
+        "claimName": "pra-backup"
+      }
+    }]
+  }
+}'
+```
+# Une fois dans le pod, lister les fichiers et noter le nom de celui voulu
+```
+ls -lh /backup
+```
+exit
+
+2. Préparer le Job de restauration
+Ouvrez le fichier pra/50-job-restore.yaml. Vous devez modifier la commande de copie pour cibler le fichier spécifique noté à l'étape précédente.
+
+Exemple de modification dans le YAML :
+# Remplacez le nom du fichier par celui choisi (ex: app-1782821641.db)
+```
+command: ["sh", "-c", "cp /backup/app-1782821641.db /data/app.db"]
+```
+3. Exécuter la restauration
+Appliquez la modification pour lancer le job de restauration :
+# Supprimer le job précédent s'il existe
+```
+kubectl -n pra delete job restore-job --ignore-not-found
+```
+# Lancer la restauration ciblée
+```
+kubectl apply -f pra/50-job-restore.yaml
+```
+4. Vérification
+Une fois le job terminé, vérifiez que le nombre d'événements dans votre base correspond bien à l'état du backup choisi en consultant votre route /status ou /count.
 ---------------------------------------------------
 Evaluation
 ---------------------------------------------------
