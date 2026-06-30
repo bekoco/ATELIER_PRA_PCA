@@ -27,9 +27,9 @@ spec:
             - |
               cd /opt/app && gunicorn -w 2 -b 0.0.0.0:8080 app:app
           volumeMounts:
-            - name: data
-              mountPath: /data
+            - name: backup-volume
+              mountPath: /backup
       volumes:
-        - name: data
+        - name: backup-volume
           persistentVolumeClaim:
-            claimName: pra-data
+            claimName: pra-backup

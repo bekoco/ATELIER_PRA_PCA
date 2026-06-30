@@ -88,6 +88,43 @@ def count():
 
     return jsonify(count=n)
 
+@app.get("/status")
+def status():
+    import os
+    import time
+    from flask import jsonify
+
+    init_db() # On s'assure que la DB est initialisée
+
+    # 1. Compter les événements dans la base de données (Le vrai code est ici !)
+    conn = get_conn()
+    cur = conn.execute("SELECT COUNT(*) FROM events")
+    nombre_evenements = cur.fetchone()[0]
+    conn.close()
+
+    # 2. Analyser le dossier des backups
+    backup_dir = '/backup'
+    last_backup_file = "Aucun backup"
+    backup_age_seconds = 0
+
+    if os.path.exists(backup_dir):
+        files = [f for f in os.listdir(backup_dir) if os.path.isfile(os.path.join(backup_dir, f))]
+        
+        if files:
+            # Trouver le fichier le plus récent
+            last_backup_file = max(files, key=lambda f: os.path.getmtime(os.path.join(backup_dir, f)))
+            last_backup_path = os.path.join(backup_dir, last_backup_file)
+            
+            # Calculer son âge en secondes
+            backup_age_seconds = int(time.time() - os.path.getmtime(last_backup_path))
+
+    # 3. Retourner le résultat en JSON
+    return jsonify({
+        "count": nombre_evenements,
+        "last_backup_file": last_backup_file,
+        "backup_age_seconds": backup_age_seconds
+    })
+
 # ---------- Main ----------
 if __name__ == "__main__":
     init_db()

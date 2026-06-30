@@ -231,27 +231,50 @@ Faites preuve de pédagogie et soyez clair dans vos explications et procedures d
 **Exercice 1 :**  
 Quels sont les composants dont la perte entraîne une perte de données ?  
   
-*..Répondez à cet exercice ici..*
+*Pour qu'il y ait une perte de données définitive dans notre architecture, il faudrait perdre simultanément :
+
+Le volume persistant (PV) lié à la production, c'est-à-dire le PVC pra-data.
+
+Le volume persistant (PV) lié aux sauvegardes, c'est-à-dire le PVC pra-backup.
+
+Si on supprime juste un pod, Kubernetes le recrée automatiquement et on ne perd rien car les données sont stockées à l'extérieur du pod (sur les volumes).*
 
 **Exercice 2 :**  
 Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data  
   
-*..Répondez à cet exercice ici..*
+*Techniquement, au moment de la suppression du PVC pra-data, le site affichait 0 message, donc on a bien "perdu" la base de données de production sur le coup. Mais on a pu tout récupérer grâce à notre PRA (Plan de Reprise d'Activité).
+En amont, on avait configuré un CronJob qui copiait le fichier SQLite toutes les minutes vers un autre volume (pra-backup). Du coup, on a simplement eu à lancer un job de restauration qui a pris le dernier fichier de backup et l'a remis dans un nouveau volume de production.*
 
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-*..Répondez à cet exercice ici..*
+*RPO (Recovery Point Objective) = 1 minute. Comme notre tâche automatisée (CronJob) fait une sauvegarde toutes les minutes, si le serveur crash, on perd au maximum les données entrées pendant la dernière minute.
+
+RTO (Recovery Time Objective) = Quelques minutes. Contrairement au crash du pod où Kubernetes gère tout seul (PCA), ici la restauration n'est pas automatique. Le RTO dépend donc du temps qu'il faut à l'administrateur pour se rendre compte du problème et taper les commandes Kubernetes pour lancer la restauration de la BDD.*
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
   
-*..Répondez à cet exercice ici..*
+*Il manque plusieurs choses pour une vraie mise en production :
+
+La base de données : SQLite est un simple fichier local. Ce n'est pas fait pour gérer beaucoup d'utilisateurs en même temps, et ça nous empêche de lancer plusieurs pods Flask en parallèle (car ils voudront tous écrire dans le même fichier en même temps).
+
+L'emplacement des sauvegardes : Nos backups sont stockés sur le même cluster (via le PVC pra-backup). Si le datacenter a un problème physique ou que le cluster entier est détruit, on perd la prod ET les sauvegardes.
+
+Le monitoring : On n'a aucun système pour nous alerter si le PVC est détruit, on doit s'en rendre compte nous-mêmes en allant sur le site.*
   
 **Exercice 5 :**  
 Proposez une archtecture plus robuste.   
   
-*..Répondez à cet exercice ici..*
+*Pour améliorer ça et avoir une vraie architecture robuste, je propose de :
+
+Remplacer SQLite par une vraie base de données (comme PostgreSQL ou MySQL) qui gère bien les accès concurrents.
+
+Déployer notre application Flask avec plusieurs réplicas (par exemple 3 pods répartis sur plusieurs nœuds) pour qu'il n'y ait pas de coupure si l'un d'eux plante.
+
+Externaliser les sauvegardes. Au lieu de les laisser dans Kubernetes, il faudrait envoyer les backups sur un stockage cloud externe (comme Amazon S3) pour être sûr de les garder même si le serveur entier brûle.
+
+Ajouter un système de supervision (comme Prometheus et Grafana) pour recevoir des alertes automatiques en cas de panne.*
 
 ---------------------------------------------------
 Séquence 6 : Ateliers  
